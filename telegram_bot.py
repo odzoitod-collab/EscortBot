@@ -2,7 +2,7 @@ import logging
 import sys
 import re
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, filters, ContextTypes
@@ -24,11 +24,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 # Supabase клиент с оптимизацией
 supabase: Client = create_client(
     Config.SUPABASE_URL, 
-    Config.SUPABASE_KEY,
-    options={
-        "auto_refresh_token": False,
-        "persist_session": False,
-    }
+    Config.SUPABASE_KEY
 )
 
 # Состояния для ConversationHandler
@@ -246,7 +242,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='HTML')
+    # Удаляем старую клавиатуру и отправляем новое сообщение
+    await update.message.reply_text(
+        welcome_text, 
+        reply_markup=reply_markup, 
+        parse_mode='HTML'
+    )
+    
+    # Отправляем дополнительное сообщение для удаления старой клавиатуры
+    await update.message.reply_text(
+        "💋", 
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    # Удаляем сообщение об обновлении через секунду
+    try:
+        await asyncio.sleep(2)
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.message.message_id + 2
+        )
+    except Exception:
+        pass  # Игнорируем ошибки удаления
 
 async def worker_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Воркер панель - /worker"""
