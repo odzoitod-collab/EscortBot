@@ -241,8 +241,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     
-    # Удаляем клавиатуру (hack)
-    asyncio.create_task(context.bot.send_message(update.effective_chat.id, "💋", reply_markup=ReplyKeyboardRemove()))
+    # Тихо удаляем ReplyKeyboard (отправляем и сразу удаляем сообщение)
+    async def remove_keyboard():
+        try:
+            msg = await context.bot.send_message(
+                update.effective_chat.id, 
+                "⠀",  # невидимый символ
+                reply_markup=ReplyKeyboardRemove()
+            )
+            await msg.delete()
+        except:
+            pass
+    asyncio.create_task(remove_keyboard())
 
 async def worker_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
