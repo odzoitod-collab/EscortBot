@@ -34,7 +34,7 @@ except Exception as e:
 
 # Состояния
 (CREATE_NAME, CREATE_AGE, CREATE_CITY, CREATE_HEIGHT, CREATE_WEIGHT,
- CREATE_BUST, CREATE_PRICE, CREATE_DESCRIPTION, CREATE_IMAGES) = range(9)
+ CREATE_BUST, CREATE_PRICE, CREATE_DESCRIPTION, CREATE_SERVICES, CREATE_IMAGES) = range(10)
 
 # ============================================
 # 2. БАЗА ДАННЫХ (DB Layer)
@@ -373,7 +373,7 @@ async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await query.answer()
     context.user_data['new'] = {}
     
-    text = "📝 <b>Создание анкеты (1/8)</b>\n\nВведите <b>Имя</b> девушки:"
+    text = "📝 <b>Создание анкеты (1/10)</b>\n\nВведите <b>Имя</b> девушки:"
     kb = [[InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
     return CREATE_NAME
@@ -405,39 +405,113 @@ async def input_process(update: Update, context: ContextTypes.DEFAULT_TYPE,
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return await input_process(update, context, 'name', CREATE_AGE, 
-        "📝 <b>Шаг 2/8</b>\nВведите <b>возраст</b> (18-60):") or CREATE_NAME
+        "📝 <b>Шаг 2/10</b>\nВведите <b>возраст</b> (18-60):") or CREATE_NAME
 
 async def get_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return await input_process(update, context, 'age', CREATE_CITY, 
-        "📝 <b>Шаг 3/8</b>\nВведите <b>Город</b>:", 
+        "📝 <b>Шаг 3/10</b>\nВведите <b>Город</b>:", 
         validator=lambda x: 18 <= int(x) <= 60, transform=int) or CREATE_AGE
 
 async def get_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return await input_process(update, context, 'city', CREATE_HEIGHT, 
-        "📝 <b>Шаг 4/8</b>\nВведите <b>Рост</b> (см):") or CREATE_CITY
+        "📝 <b>Шаг 4/10</b>\nВведите <b>Рост</b> (см):") or CREATE_CITY
 
 async def get_height(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return await input_process(update, context, 'height', CREATE_WEIGHT, 
-        "📝 <b>Шаг 5/8</b>\nВведите <b>Вес</b> (кг):", transform=int) or CREATE_HEIGHT
+        "📝 <b>Шаг 5/10</b>\nВведите <b>Вес</b> (кг):", transform=int) or CREATE_HEIGHT
 
 async def get_weight(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return await input_process(update, context, 'weight', CREATE_BUST, 
-        "📝 <b>Шаг 6/8</b>\nВведите размер <b>груди</b> (1-10):", transform=int) or CREATE_WEIGHT
+        "📝 <b>Шаг 6/10</b>\nВведите размер <b>груди</b> (1-10):", transform=int) or CREATE_WEIGHT
 
 async def get_bust(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return await input_process(update, context, 'bust', CREATE_PRICE, 
-        "📝 <b>Шаг 7/8</b>\nВведите <b>Цену</b> за час (только цифры):", transform=int) or CREATE_BUST
+        "📝 <b>Шаг 7/10</b>\nВведите <b>Цену</b> за час (только цифры):", transform=int) or CREATE_BUST
 
 async def get_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    res = await input_process(update, context, 'price', CREATE_IMAGES, 
-        "📸 <b>Финал!</b>\nОтправьте <b>ФОТО</b> (можно несколько).\nКогда закончите — нажмите «✅ Готово»", 
+    res = await input_process(update, context, 'price', CREATE_DESCRIPTION, 
+        "📝 <b>Шаг 8/10</b>\nВведите <b>описание</b> анкеты:\n\n<i>Опишите внешность, характер, особенности.\nМожно пропустить — нажмите кнопку ниже.</i>", 
         validator=lambda x: int(x.replace(' ', '')) > 0, transform=lambda x: int(x.replace(' ', '')))
     
-    # Добавляем кнопку "Готово" к сообщению
     if res:
-        kb = [[InlineKeyboardButton("✅ Готово", callback_data="done_images")]]
-        await update.message.reply_text("👇 Нажмите кнопку, когда загрузите все фото:", reply_markup=InlineKeyboardMarkup(kb))
+        kb = [
+            [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_description")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]
+        ]
+        await update.message.reply_text("👇 Введите описание или пропустите:", reply_markup=InlineKeyboardMarkup(kb))
     return res or CREATE_PRICE
+
+async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Получение описания"""
+    text = update.message.text.strip()
+    safe_text = html.escape(text)
+    context.user_data['new']['description'] = safe_text
+    
+    services_list = (
+        "📝 <b>Шаг 9/10</b>\nВведите <b>услуги</b> через запятую:\n\n"
+        "<i>Например: Классика, Минет, Массаж, Эскорт</i>\n\n"
+        "Доступные услуги:\n"
+        "Классика, Минет, Анал, Массаж, Массаж эротический, "
+        "Куннилингус, БДСМ, Ролевые игры, Стриптиз, Эскорт, Выезд, Апартаменты"
+    )
+    kb = [
+        [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_services")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]
+    ]
+    await update.message.reply_text(services_list, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    return CREATE_SERVICES
+
+async def skip_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Пропуск описания"""
+    query = update.callback_query
+    await query.answer()
+    context.user_data['new']['description'] = ''
+    
+    services_list = (
+        "📝 <b>Шаг 9/10</b>\nВведите <b>услуги</b> через запятую:\n\n"
+        "<i>Например: Классика, Минет, Массаж, Эскорт</i>\n\n"
+        "Доступные услуги:\n"
+        "Классика, Минет, Анал, Массаж, Массаж эротический, "
+        "Куннилингус, БДСМ, Ролевые игры, Стриптиз, Эскорт, Выезд, Апартаменты"
+    )
+    kb = [
+        [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_services")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]
+    ]
+    await query.edit_message_text(services_list, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    return CREATE_SERVICES
+
+async def get_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Получение услуг"""
+    text = update.message.text.strip()
+    services = [html.escape(s.strip()) for s in text.split(',') if s.strip()]
+    context.user_data['new']['services'] = services
+    
+    kb = [
+        [InlineKeyboardButton("✅ Готово", callback_data="done_images")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]
+    ]
+    await update.message.reply_text(
+        "📸 <b>Шаг 10/10</b>\nОтправьте <b>ФОТО</b> (можно несколько).\n\nКогда закончите — нажмите «✅ Готово»",
+        reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML
+    )
+    return CREATE_IMAGES
+
+async def skip_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Пропуск услуг"""
+    query = update.callback_query
+    await query.answer()
+    context.user_data['new']['services'] = ['Классика', 'Массаж']
+    
+    kb = [
+        [InlineKeyboardButton("✅ Готово", callback_data="done_images")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]
+    ]
+    await query.edit_message_text(
+        "📸 <b>Шаг 10/10</b>\nОтправьте <b>ФОТО</b> (можно несколько).\n\nКогда закончите — нажмите «✅ Готово»",
+        reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML
+    )
+    return CREATE_IMAGES
 
 async def get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not update.message.photo: 
@@ -505,6 +579,14 @@ def main():
             CREATE_WEIGHT: [MessageHandler(filters.TEXT, get_weight)],
             CREATE_BUST: [MessageHandler(filters.TEXT, get_bust)],
             CREATE_PRICE: [MessageHandler(filters.TEXT, get_price)],
+            CREATE_DESCRIPTION: [
+                MessageHandler(filters.TEXT, get_description),
+                CallbackQueryHandler(skip_description, pattern="^skip_description$")
+            ],
+            CREATE_SERVICES: [
+                MessageHandler(filters.TEXT, get_services),
+                CallbackQueryHandler(skip_services, pattern="^skip_services$")
+            ],
             CREATE_IMAGES: [
                 MessageHandler(filters.PHOTO, get_photo),
                 CallbackQueryHandler(finish_create, pattern="^done_images$")
