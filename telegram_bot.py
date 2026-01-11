@@ -439,17 +439,28 @@ async def get_bust(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "📝 <b>Шаг 7/10</b>\nВведите <b>Цену</b> за час (только цифры):", transform=int) or CREATE_BUST
 
 async def get_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    res = await input_process(update, context, 'price', CREATE_DESCRIPTION, 
-        "📝 <b>Шаг 8/10</b>\nВведите <b>описание</b> анкеты:\n\n<i>Опишите внешность, характер, особенности.\nМожно пропустить — нажмите кнопку ниже.</i>", 
-        validator=lambda x: int(x.replace(' ', '')) > 0, transform=lambda x: int(x.replace(' ', '')))
+    text = update.message.text.strip()
     
-    if res:
-        kb = [
-            [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_description")],
-            [InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]
-        ]
-        await update.message.reply_text("👇 Введите описание или пропустите:", reply_markup=InlineKeyboardMarkup(kb))
-    return res or CREATE_PRICE
+    try:
+        price = int(text.replace(' ', ''))
+        if price <= 0:
+            raise ValueError()
+    except:
+        await update.message.reply_text("❌ <b>Ошибка!</b> Введите корректную цену (только цифры):", parse_mode=ParseMode.HTML)
+        return CREATE_PRICE
+    
+    context.user_data['new']['price'] = price
+    
+    kb = [
+        [InlineKeyboardButton("⏭ Пропустить", callback_data="skip_description")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="cancel_create")]
+    ]
+    await update.message.reply_text(
+        "📝 <b>Шаг 8/10</b>\nВведите <b>описание</b> анкеты:\n\n"
+        "<i>Опишите внешность, характер, особенности.\nМожно пропустить — нажмите кнопку ниже.</i>",
+        reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML
+    )
+    return CREATE_DESCRIPTION
 
 async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Получение описания"""
